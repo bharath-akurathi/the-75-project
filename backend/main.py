@@ -1,5 +1,4 @@
 import os
-import time
 from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -23,12 +22,17 @@ app.add_middleware(
 SUPABASE_URL = os.getenv("EXPO_PUBLIC_SUPABASE_URL")
 SUPABASE_KEY = os.getenv("EXPO_PUBLIC_SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", SUPABASE_KEY)
+JWKS_CACHE_LIFESPAN_SECONDS = int(os.getenv("JWKS_CACHE_LIFESPAN_SECONDS", "600"))
 
 if not SUPABASE_URL or not SUPABASE_KEY:
     raise RuntimeError("EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY must be set")
 
 jwks_url = f"{SUPABASE_URL}/auth/v1/.well-known/jwks.json"
-jwks_client = PyJWKClient(jwks_url, cache_jwk_set=True, lifespan=600) # Cache for 10 mins
+jwks_client = PyJWKClient(
+    jwks_url,
+    cache_jwk_set=True,
+    lifespan=JWKS_CACHE_LIFESPAN_SECONDS,
+)
 
 def get_current_user(request: Request) -> str:
     auth_header = request.headers.get("Authorization")
@@ -43,7 +47,7 @@ def get_current_user(request: Request) -> str:
         payload = jwt.decode(
             token,
             signing_key.key,
-            algorithms=["RS256", "ES256", "HS256"],
+            algorithms=["RS256", "ES256"],
             audience="authenticated"
         )
         return payload["sub"]
