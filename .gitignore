@@ -10,7 +10,7 @@ web-build/
 expo-env.d.ts
 
 temp
-
+builds
 # Native
 .kotlin/
 *.orig.*
