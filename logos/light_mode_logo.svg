@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="sunsetGradLight" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#E11D48" />
+      <stop offset="100%" stop-color="#F59E0B" />
+    </linearGradient>
+    <clipPath id="bottomSliceOrig">
+      <polygon points="0 46, 100 26, 100 100, 0 100" />
+    </clipPath>
+    <clipPath id="topSliceOrig">
+      <polygon points="0 0, 100 0, 100 20, 0 40" />
+    </clipPath>
+  </defs>
+  
+  <!-- Solid White App Icon Background (No outer borders) -->
+  <rect x="0" y="0" width="100" height="100" rx="22" fill="#FFFFFF" />
+  
+  <!-- Top Empty Buffer (Distinct outline, no unified border) -->
+  <rect x="30" y="10" width="40" height="80" rx="20" fill="none" stroke="#1C1917" stroke-width="4" clip-path="url(#topSliceOrig)" />
+  
+  <!-- Bottom Solid Fill -->
+  <rect x="30" y="10" width="40" height="80" rx="20" fill="url(#sunsetGradLight)" clip-path="url(#bottomSliceOrig)" />
+  
+  <!-- Laser Threshold -->
+  <line x1="24" y1="38.2" x2="76" y2="27.8" stroke="#E11D48" stroke-width="2.5" stroke-linecap="round" />
+</svg>

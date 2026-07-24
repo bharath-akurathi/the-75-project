@@ -1,5 +1,8 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
+# Claude/AI agent config
+.claude/
+
 # dependencies
 node_modules/
 
@@ -11,6 +14,7 @@ expo-env.d.ts
 
 temp
 builds
+
 # Native
 .kotlin/
 *.orig.*
@@ -32,7 +36,8 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# local env files
+# local env files — NEVER commit .env (SRS Section 11)
+.env
 .env*.local
 
 # typescript
@@ -43,3 +48,12 @@ example
 # generated native folders
 /ios
 /android
+
+# Python / Backend
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+.env/
