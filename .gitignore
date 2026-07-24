@@ -3,9 +3,6 @@
 # Claude/AI agent config
 .claude/
 
-# remove v1 so builds can be generated in the root folder instead of .expo/
-
-v1/
 
 # dependencies
 node_modules/
