@@ -1,11 +1,15 @@
 import os
-from fastapi import FastAPI, HTTPException, Request, Depends
+import base64
+import json
+import re
+from fastapi import FastAPI, HTTPException, Request, Depends, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import httpx
 import jwt
 from jwt import PyJWKClient
 from typing import Optional
+import google.generativeai as genai
 
 # Setup
 app = FastAPI(title="The 75 Project API")
@@ -22,6 +26,7 @@ app.add_middleware(
 SUPABASE_URL = os.getenv("EXPO_PUBLIC_SUPABASE_URL")
 SUPABASE_KEY = os.getenv("EXPO_PUBLIC_SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", SUPABASE_KEY)
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 JWKS_CACHE_LIFESPAN_SECONDS = int(os.getenv("JWKS_CACHE_LIFESPAN_SECONDS", "600"))
 
 if not SUPABASE_URL or not SUPABASE_KEY:
@@ -61,6 +66,151 @@ def get_current_user(request: Request) -> str:
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
+
+# ============================================================================
+# AI Timetable Image Extraction (FR-2.1)
+# ============================================================================
+
+PARSE_PROMPT = """You are extracting a weekly class timetable from an image.
+Return ONLY valid JSON, no markdown, no commentary, in this schema:
+
+{
+  "slots": [
+    {
+      "day": "Monday",
+      "period_number": 1,
+      "subject_raw": "exactly as written on the timetable",
+      "is_lab": false
+    }
+  ]
+}
+
+Rules:
+- If a cell is empty, contains "...", "---", or indicates no class, set subject_raw to "---" (it will be skipped automatically).
+- Set "is_lab" to true if the subject is a lab/practical session.
+- Labs that span multiple periods: create ONE slot with period_span set to the number of periods.
+- Never invent a subject or period that isn't visible in the source.
+- Use the EXACT day names visible in the image (e.g., "Monday", "Tue", "Mon")
+- Period numbers should be integers starting from 1"""
+
+@app.post("/parse-image")
+async def parse_timetable_image(
+    file: UploadFile = File(...),
+    user_id: str = Depends(get_current_user)
+):
+    """
+    Parses a timetable image using Gemini Vision and returns structured JSON.
+    FR-2.1: Native AI Timetable Image Extraction
+    """
+    if not GEMINI_API_KEY:
+        raise HTTPException(status_code=503, detail="AI parsing service not configured")
+    
+    # Validate file type
+    allowed_types = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported image type: {file.content_type}. Please use JPEG, PNG, or WebP."
+        )
+    
+    # Read and encode image
+    image_bytes = await file.read()
+    
+    # Validate file size (max 10MB)
+    if len(image_bytes) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Image too large. Maximum size is 10MB.")
+    
+    # Validate minimum size (likely corrupted if too small)
+    if len(image_bytes) < 1000:
+        raise HTTPException(status_code=400, detail="Image appears to be corrupted or too small.")
+    
+    image_b64 = base64.b64encode(image_bytes).decode("utf-8")
+    
+    # Get MIME type for Gemini
+    mime_type = file.content_type or "image/jpeg"
+    
+    # Configure Gemini lazily
+    if not GEMINI_API_KEY:
+        raise HTTPException(status_code=503, detail="AI parsing service not configured")
+    genai.configure(api_key=GEMINI_API_KEY)
+    
+    try:
+        # Initialize Gemini model
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        
+        # Create image part
+        image_part = {
+            "inline_data": {
+                "mime_type": mime_type,
+                "data": image_b64
+            }
+        }
+        
+        # Generate response
+        response = model.generate_content([
+            PARSE_PROMPT,
+            image_part
+        ])
+        
+        if not response.text:
+            raise HTTPException(status_code=500, detail="AI returned empty response")
+        
+        # Extract JSON from response (handle potential markdown wrapping)
+        response_text = response.text.strip()
+        
+        # Remove markdown code blocks if present
+        json_match = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', response_text, re.DOTALL)
+        if json_match:
+            response_text = json_match.group(1).strip()
+        
+        # Try to parse the JSON
+        try:
+            timetable_data = json.loads(response_text)
+        except json.JSONDecodeError:
+            # Try to find JSON object in the response
+            json_match = re.search(r'\{[\s\S]*\}', response_text)
+            if json_match:
+                timetable_data = json.loads(json_match.group())
+            else:
+                raise HTTPException(
+                    status_code=500,
+                    detail="AI returned invalid JSON. Please try again with a clearer photo."
+                )
+        
+        # Validate structure
+        if "slots" not in timetable_data:
+            raise HTTPException(
+                status_code=500,
+                detail="AI response missing 'slots' array. Please try again."
+            )
+        
+        # Validate each slot
+        valid_slots = []
+        for slot in timetable_data["slots"]:
+            if all(key in slot for key in ["day", "period_number", "subject_raw"]):
+                # Skip empty/placeholder slots
+                if slot["subject_raw"] and slot["subject_raw"] not in ["---", "...", "", "N/A"]:
+                    valid_slots.append(slot)
+        
+        return {
+            "status": "success",
+            "timetable": {
+                "slots": valid_slots
+            },
+            "metadata": {
+                "total_slots": len(valid_slots),
+                "skipped_empty": len(timetable_data["slots"]) - len(valid_slots)
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Gemini API error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"AI parsing failed: {str(e)}. Please try again or use manual entry."
+        )
 
 # Crowd / Class Group Models
 class CreateClassGroupRequest(BaseModel):

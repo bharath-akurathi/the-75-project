@@ -19,8 +19,8 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { addSubject, addSlot, getAllSubjects, getAllSlots } from '@/lib/database/queries';
 import { validateTimetableJson, extractUniqueSubjects } from '@/utils/jsonValidator';
-import { JsonPasteModal } from '@/components/JsonPasteModal';
 import { CloneModal } from '@/components/CloneModal';
+import { ImageUploadModal } from '@/components/ImageUploadModal';
 import { Colors } from '@/theme/colors';
 import { Typography } from '@/theme/typography';
 import { Spacing, BorderRadius } from '@/theme/spacing';
@@ -31,8 +31,8 @@ const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
 export default function TimetableScreen() {
   const router = useRouter();
   const db = useSQLiteContext();
-  const [showJsonModal, setShowJsonModal] = useState(false);
   const [showCloneModal, setShowCloneModal] = useState(false);
+  const [showImageModal, setShowImageModal] = useState(false);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [slots, setSlots] = useState<TimetableSlotWithSubject[]>([]);
   const [showManual, setShowManual] = useState(false);
@@ -153,11 +153,11 @@ export default function TimetableScreen() {
         <View style={styles.optionsRow}>
           <TouchableOpacity
             style={styles.optionButton}
-            onPress={() => setShowJsonModal(true)}
+            onPress={() => setShowImageModal(true)}
           >
-            <Ionicons name="sparkles" size={22} color={Colors.amber} />
+            <Ionicons name="camera" size={22} color={Colors.amber} />
             <Text style={styles.optionButtonTitle}>AI Import</Text>
-            <Text style={styles.optionButtonSub}>Paste JSON</Text>
+            <Text style={styles.optionButtonSub}>Scan Image</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -281,6 +281,11 @@ export default function TimetableScreen() {
       <CloneModal
         visible={showCloneModal}
         onClose={() => setShowCloneModal(false)}
+        onImport={handleJsonImport}
+      />
+      <ImageUploadModal
+        visible={showImageModal}
+        onClose={() => setShowImageModal(false)}
         onImport={handleJsonImport}
       />
     </View>
