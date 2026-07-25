@@ -74,8 +74,12 @@ function NavigationGuard({ children }: { children: React.ReactNode }) {
       // Authenticated or Guest
       if (!onboardingComplete && !inOnboardingGroup) {
         router.replace('/(onboarding)/welcome');
-      } else if (onboardingComplete && (inAuthGroup || inOnboardingGroup)) {
-        router.replace('/(tabs)');
+      } else if (onboardingComplete) {
+        if (inOnboardingGroup) {
+          router.replace('/(tabs)');
+        } else if (inAuthGroup && authMode === 'authenticated') {
+          router.replace('/(tabs)');
+        }
       }
     }
   }, [isReady, authMode, onboardingComplete, segments, router]);

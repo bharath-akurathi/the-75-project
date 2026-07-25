@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="logos/logo.png" width="120" alt="The 75 Project Logo" />
+</div>
+
 # The 75 Project
 
 An offline-first, regulation-aware attendance tracker for JNTUH students. This app ensures you never accidentally drop below the mandatory 75% attendance threshold by providing mathematically precise safe-to-skip margins and worst-case burndown dates.

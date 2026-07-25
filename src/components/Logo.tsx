@@ -4,7 +4,8 @@
  */
 
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, useColorScheme } from 'react-native';
+import Svg, { Defs, LinearGradient, Stop, ClipPath, Polygon, Rect, Line } from 'react-native-svg';
 import { Colors } from '@/theme/colors';
 
 interface LogoProps {
@@ -12,79 +13,32 @@ interface LogoProps {
 }
 
 export function Logo({ size = 80 }: LogoProps) {
-  const scale = size / 100;
+  const colorScheme = useColorScheme();
+  const strokeColor = colorScheme === 'light' ? Colors.light.text : Colors.dark.text;
 
   return (
-    <View style={[styles.container, { width: size, height: size }]}>
-      {/* Top outline pill (clipped to show only top portion) */}
-      <View style={[styles.topClip, {
-        width: size,
-        height: size * 0.4,
-      }]}>
-        <View style={[styles.pillOutline, {
-          width: 40 * scale,
-          height: 80 * scale,
-          borderRadius: 20 * scale,
-          borderWidth: 4 * scale,
-          top: 10 * scale,
-          left: 30 * scale,
-        }]} />
-      </View>
-
-      {/* Bottom gradient pill (clipped to show only bottom portion) */}
-      <View style={[styles.bottomClip, {
-        width: size,
-        height: size * 0.6,
-        top: size * 0.4,
-      }]}>
-        <View style={[styles.pillGradient, {
-          width: 40 * scale,
-          height: 80 * scale,
-          borderRadius: 20 * scale,
-          top: (10 - 40) * scale,
-          left: 30 * scale,
-        }]} />
-      </View>
-
-      {/* Laser threshold line */}
-      <View style={[styles.laserLine, {
-        top: size * 0.33,
-        left: size * 0.24,
-        width: size * 0.52,
-        height: 2.5 * scale,
-        transform: [{ rotate: '-6deg' }],
-      }]} />
+    <View style={{ width: size, height: size }}>
+      <Svg width="100%" height="100%" viewBox="0 0 100 100">
+        <Defs>
+          <LinearGradient id="v2Grad" x1="0%" y1="100%" x2="100%" y2="0%">
+            <Stop offset="0%" stopColor={Colors.rose} />
+            <Stop offset="100%" stopColor={Colors.amber} />
+          </LinearGradient>
+          <ClipPath id="v2Bottom">
+            <Polygon points="0 46, 100 26, 100 100, 0 100" />
+          </ClipPath>
+          <ClipPath id="v2Top">
+            <Polygon points="0 0, 100 0, 100 20, 0 40" />
+          </ClipPath>
+        </Defs>
+        
+        <Rect x="30" y="10" width="40" height="80" rx="20" fill="none" stroke={strokeColor} strokeWidth="4" clipPath="url(#v2Top)" />
+        
+        <Rect x="30" y="10" width="40" height="80" rx="20" fill="url(#v2Grad)" clipPath="url(#v2Bottom)" />
+        
+        {/* Laser Threshold */}
+        <Line x1="24" y1="38.2" x2="76" y2="27.8" stroke={Colors.rose} strokeWidth="2.5" strokeLinecap="round" />
+      </Svg>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    position: 'relative',
-  },
-  topClip: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    overflow: 'hidden',
-  },
-  bottomClip: {
-    position: 'absolute',
-    left: 0,
-    overflow: 'hidden',
-  },
-  pillOutline: {
-    position: 'absolute',
-    borderColor: '#FFFFFF',
-    backgroundColor: 'transparent',
-  },
-  pillGradient: {
-    position: 'absolute',
-    backgroundColor: Colors.rose, // Simplified from gradient — main brand color
-  },
-  laserLine: {
-    position: 'absolute',
-    backgroundColor: '#F43F5E',
-    borderRadius: 2,
-  },
-});
