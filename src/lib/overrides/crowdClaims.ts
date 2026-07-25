@@ -39,11 +39,17 @@ export function computeQuorum(classGroupSize: number): number {
  * - A CR's assert counts as satisfying quorum by itself, but can still be disputed by members
  */
 export function evaluateClaim(reports: CrowdReport[], quorum: number): ClaimEvaluation {
+  // Deduplicate by student - only count the latest report per student
+  const latestReports = new Map<string, CrowdReport>();
+  for (const report of reports) {
+    latestReports.set(report.studentId, report);
+  }
+
   let asserts = 0;
   let rejects = 0;
   let hasCRAssert = false;
 
-  for (const report of reports) {
+  for (const report of latestReports.values()) {
     if (report.stance === 'assert') {
       asserts++;
       if (report.isCR) hasCRAssert = true;

@@ -448,45 +448,59 @@ export async function getUnmarkedDays(db: SQLiteDatabase): Promise<string[]> {
   const semId = await getActiveSemesterId(db, studentId!);
   if (!studentId || !semId) return [];
 
-  // past 10 days
-  const unmarkedDays: string[] = [];
+  // Build date list for the past 10 days (excluding Sundays)
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+  const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const candidateDates: { dateStr: string; dayOfWeek: string }[] = [];
 
-  // We need to use dateHelpers for this, but we'll do simple JS dates
   for (let i = 1; i <= 10; i++) {
     const d = new Date(today);
     d.setDate(today.getDate() - i);
-    const dayOfWeek = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][d.getDay()];
-    
+    const dayOfWeek = dayNames[d.getDay()];
     if (dayOfWeek === 'Sunday') continue;
-
-    const dateStr = d.toISOString().split('T')[0];
-
-    // Check if it's an exam day
-    const exam = await db.getFirstAsync(
-      'SELECT id FROM academic_calendar WHERE student_id = ? AND semester_id = ? AND type = "exam" AND date = ?',
-      [studentId, semId, dateStr]
-    );
-    if (exam) continue;
-
-    // Check if there are slots on this day
-    const slots = await db.getAllAsync(
-      'SELECT id FROM timetable_slots WHERE student_id = ? AND semester_id = ? AND day_or_day_order = ?',
-      [studentId, semId, dayOfWeek]
-    );
-    if (slots.length === 0) continue;
-
-    // Check if ANY attendance record exists for this date
-    const record = await db.getFirstAsync(
-      'SELECT id FROM attendance_records WHERE student_id = ? AND semester_id = ? AND date = ?',
-      [studentId, semId, dateStr]
-    );
-
-    if (!record) {
-      unmarkedDays.push(dateStr);
-    }
+    candidateDates.push({
+      dateStr: d.toISOString().split('T')[0],
+      dayOfWeek
+    });
   }
+
+  if (candidateDates.length === 0) return [];
+
+  // Batch 1: Get all exam dates for this semester in one query
+  const examDates = await db.getAllAsync<{ date: string }>(
+    'SELECT DISTINCT date FROM academic_calendar WHERE student_id = ? AND semester_id = ? AND type = "exam"',
+    [studentId, semId]
+  );
+  const examDateSet = new Set(examDates.map(e => e.date));
+
+  // Batch 2: Get all slots grouped by day in one query
+  const allSlotsByDay = await db.getAllAsync<{ day_or_day_order: string }>(
+    'SELECT DISTINCT day_or_day_order FROM timetable_slots WHERE student_id = ? AND semester_id = ?',
+    [studentId, semId]
+  );
+  const daysWithSlots = new Set(allSlotsByDay.map(s => s.day_or_day_order));
+
+  // Filter candidates: skip exam days and days without slots
+  const validDates = candidateDates.filter(c =>
+    !examDateSet.has(c.dateStr) && daysWithSlots.has(c.dayOfWeek)
+  );
+
+  if (validDates.length === 0) return [];
+
+  // Batch 3: Get all dates that have ANY attendance record in one query
+  const dateList = validDates.map(c => c.dateStr);
+  const placeholders = dateList.map(() => '?').join(',');
+  const recordedDates = await db.getAllAsync<{ date: string }>(
+    `SELECT DISTINCT date FROM attendance_records WHERE student_id = ? AND semester_id = ? AND date IN (${placeholders})`,
+    [studentId, semId, ...dateList]
+  );
+  const recordedDateSet = new Set(recordedDates.map(r => r.date));
+
+  // Find unmarked dates
+  const unmarkedDays = validDates
+    .filter(c => !recordedDateSet.has(c.dateStr))
+    .map(c => c.dateStr);
 
   return unmarkedDays.sort();
 }
@@ -497,14 +511,12 @@ export async function getUnmarkedDays(db: SQLiteDatabase): Promise<string[]> {
 export async function resetAllData(db: SQLiteDatabase): Promise<void> {
   const studentId = await getActiveStudentId(db);
   if (studentId) {
-    await db.execAsync(`
-      DELETE FROM attendance_records WHERE student_id = '${studentId}';
-      DELETE FROM daily_overrides WHERE student_id = '${studentId}';
-      DELETE FROM timetable_slots WHERE student_id = '${studentId}';
-      DELETE FROM subjects WHERE student_id = '${studentId}';
-      DELETE FROM semesters WHERE student_id = '${studentId}';
-      DELETE FROM students WHERE id = '${studentId}';
-    `);
+    await db.runAsync('DELETE FROM attendance_records WHERE student_id = ?', [studentId]);
+    await db.runAsync('DELETE FROM daily_overrides WHERE student_id = ?', [studentId]);
+    await db.runAsync('DELETE FROM timetable_slots WHERE student_id = ?', [studentId]);
+    await db.runAsync('DELETE FROM subjects WHERE student_id = ?', [studentId]);
+    await db.runAsync('DELETE FROM semesters WHERE student_id = ?', [studentId]);
+    await db.runAsync('DELETE FROM students WHERE id = ?', [studentId]);
   }
 }
 

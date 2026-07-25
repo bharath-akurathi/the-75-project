@@ -11,13 +11,15 @@ import {
   TouchableOpacity,
   StyleSheet,
   RefreshControl,
+  Alert,
 } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { getSlotsForDay, getExceptionsForDate, setException, removeException, getPreferences, getExamPeriods, getUnmarkedDays } from '@/lib/database/queries';
-import type { TimetableSlotWithSubject, DailyException, UserPreferences, ExamPeriod } from '@/lib/database/queries';
+import { getSlotsForDay, getExceptionsForDate, setException, removeException, getPreferences, getExamPeriods, getUnmarkedDays, getAllSubjects, getActiveStudentId, getActiveSemesterId } from '@/lib/database/queries';
+import { addExtraClass } from '@/lib/database/mutations';
+import type { TimetableSlotWithSubject, DailyException, UserPreferences, ExamPeriod, Subject } from '@/lib/database/queries';
 import { PeriodCard, PeriodStatus } from '@/components/PeriodCard';
 import { EmptyState } from '@/components/EmptyState';
 import { Logo } from '@/components/Logo';
@@ -25,7 +27,7 @@ import { getDayOfWeek, formatDate, formatDateDisplay, getDatesFromStart, isToday
 import { Colors } from '@/theme/colors';
 import { Typography } from '@/theme/typography';
 import { Spacing, BorderRadius } from '@/theme/spacing';
-import { Modal } from 'react-native';
+import { Modal, TextInput } from 'react-native';
 import Animated, { FadeInUp, Layout } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -41,6 +43,13 @@ export default function TodayScreen() {
   const [showRetroactiveModal, setShowRetroactiveModal] = useState(false);
   const [hasCheckedRetroactive, setHasCheckedRetroactive] = useState(false);
 
+  // Extra Class Modal State
+  const [showExtraClassModal, setShowExtraClassModal] = useState(false);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
+  const [extraPeriod, setExtraPeriod] = useState<string>('1');
+  const [extraSpan, setExtraSpan] = useState<string>('1');
+
   const [undoState, setUndoState] = useState<{
     slot: TimetableSlotWithSubject;
     oldStatus: PeriodStatus;
@@ -52,6 +61,15 @@ export default function TodayScreen() {
   const isSunday = dayOfWeek === 'Sunday';
 
   const isExamMode = examPeriods.some(ep => dateStr >= ep.start_date && dateStr <= ep.end_date);
+
+  // Load subjects for Extra Class modal
+  const loadSubjects = useCallback(async () => {
+    const s = await getAllSubjects(db);
+    setSubjects(s);
+    if (s.length > 0 && !selectedSubjectId) {
+      setSelectedSubjectId(s[0].id);
+    }
+  }, [db]);
 
   const loadData = useCallback(async () => {
     const p = await getPreferences(db);
@@ -84,7 +102,8 @@ export default function TodayScreen() {
   useFocusEffect(
     useCallback(() => {
       loadData();
-    }, [loadData])
+      loadSubjects();
+    }, [loadData, loadSubjects])
   );
 
   const onRefresh = async () => {
@@ -129,6 +148,64 @@ export default function TodayScreen() {
     // Mark as cancelled
     await setException(db, dateStr, slot.period_num, slot.subject_id, 'cancelled');
     await loadData();
+  };
+
+  const handleAddExtraClass = async () => {
+    if (!selectedSubjectId || !extraPeriod) return;
+    
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
+    try {
+      const studentId = await getActiveStudentId(db);
+      const semesterId = await getActiveSemesterId(db, studentId!);
+      if (!studentId || !semesterId) return;
+      
+      const period = parseInt(extraPeriod, 10);
+      const span = parseInt(extraSpan, 10) || 1;
+      
+      if (isNaN(period) || period < 1 || period > 10) {
+        Alert.alert('Invalid Period', 'Please enter a valid period number (1-10).');
+        return;
+      }
+      
+      if (isNaN(span) || span < 1 || span > 4) {
+        Alert.alert('Invalid Span', 'Please enter a valid span (1-4 periods).');
+        return;
+      }
+      
+      // Check for existing class at this slot
+      const existingSlots = slots.filter(s => s.period_num === period);
+      const performInsert = async () => {
+        await addExtraClass(studentId, semesterId, dateStr, selectedSubjectId, period, span);
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        setShowExtraClassModal(false);
+        await loadData();
+        setExtraPeriod('1');
+        setExtraSpan('1');
+      };
+
+      if (existingSlots.length > 0) {
+        const subjectName = subjects.find(s => s.id === selectedSubjectId)?.name || 'Unknown';
+        Alert.alert(
+          'Slot Conflict',
+          `Period ${period} already has ${existingSlots[0].subject_name}. Add extra class for ${subjectName} anyway?`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Add Anyway',
+              style: 'destructive',
+              onPress: performInsert
+            }
+          ]
+        );
+        return;
+      }
+
+      await performInsert();
+    } catch (error) {
+      console.error('Failed to add extra class:', error);
+      Alert.alert('Error', 'Failed to add extra class. Please try again.');
+    }
   };
 
   // Stats
@@ -334,12 +411,102 @@ export default function TodayScreen() {
       <TouchableOpacity 
         style={styles.fab}
         onPress={() => {
-          // TODO: Implement Extra Class flow
-          alert('Extra Class functionality coming soon!');
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          setShowExtraClassModal(true);
         }}
       >
         <Ionicons name="add" size={28} color="#fff" />
       </TouchableOpacity>
+
+      {/* Extra Class Modal */}
+      <Modal
+        visible={showExtraClassModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowExtraClassModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalIconBg}>
+              <Ionicons name="add-circle-outline" size={32} color={Colors.amber} />
+            </View>
+            <Text style={styles.modalTitle}>Add Extra Class</Text>
+            <Text style={styles.modalSubtitle}>
+              Record an extra class for {formatDateDisplay(selectedDate)}
+            </Text>
+
+            {/* Subject Selection */}
+            <View style={styles.extraClassField}>
+              <Text style={styles.extraClassLabel}>Subject</Text>
+              <ScrollView style={styles.subjectList} horizontal showsHorizontalScrollIndicator={false}>
+                {subjects.map(subject => (
+                  <TouchableOpacity
+                    key={subject.id}
+                    style={[
+                      styles.subjectChip,
+                      selectedSubjectId === subject.id && styles.subjectChipSelected
+                    ]}
+                    onPress={() => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setSelectedSubjectId(subject.id);
+    }}
+                  >
+                    <Text style={[
+                      styles.subjectChipText,
+                      selectedSubjectId === subject.id && styles.subjectChipTextSelected
+                    ]}>
+                      {subject.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+
+            {/* Period Number */}
+            <View style={styles.extraClassField}>
+              <Text style={styles.extraClassLabel}>Period Number</Text>
+              <TextInput
+                style={styles.extraClassInput}
+                value={extraPeriod}
+                onChangeText={setExtraPeriod}
+                keyboardType="numeric"
+                maxLength={2}
+                placeholder="1"
+                placeholderTextColor={Colors.dark.textMuted}
+              />
+            </View>
+
+            {/* Period Span */}
+            <View style={styles.extraClassField}>
+              <Text style={styles.extraClassLabel}>Period Span (1-4)</Text>
+              <TextInput
+                style={styles.extraClassInput}
+                value={extraSpan}
+                onChangeText={setExtraSpan}
+                keyboardType="numeric"
+                maxLength={1}
+                placeholder="1"
+                placeholderTextColor={Colors.dark.textMuted}
+              />
+            </View>
+
+            <TouchableOpacity 
+              style={styles.modalPrimaryBtn}
+              onPress={handleAddExtraClass}
+              disabled={!selectedSubjectId}
+            >
+              <Text style={styles.modalPrimaryBtnText}>Add Class</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.modalSecondaryBtn}
+              onPress={() => setShowExtraClassModal(false)}
+            >
+              <Text style={styles.modalSecondaryBtnText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -563,6 +730,50 @@ const styles = StyleSheet.create({
     fontSize: Typography.size.sm,
     fontWeight: Typography.weight.bold,
     color: Colors.rose,
+  },
+  extraClassField: {
+    width: '100%',
+    marginBottom: Spacing.lg,
+  },
+  extraClassLabel: {
+    fontSize: Typography.size.sm,
+    color: Colors.dark.textSecondary,
+    marginBottom: Spacing.sm,
+    fontWeight: Typography.weight.medium,
+  },
+  subjectList: {
+    maxHeight: 80,
+  },
+  subjectChip: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: Colors.dark.bgElevated,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    marginRight: Spacing.sm,
+  },
+  subjectChipSelected: {
+    backgroundColor: Colors.amber,
+    borderColor: Colors.amber,
+  },
+  subjectChipText: {
+    fontSize: Typography.size.sm,
+    color: Colors.dark.text,
+  },
+  subjectChipTextSelected: {
+    color: '#000',
+    fontWeight: Typography.weight.semibold,
+  },
+  extraClassInput: {
+    backgroundColor: Colors.dark.bgElevated,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    fontSize: Typography.size.base,
+    color: Colors.dark.text,
+    width: '100%',
   },
   fab: {
     position: 'absolute',
