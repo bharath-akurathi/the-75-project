@@ -16,7 +16,7 @@ app = FastAPI(title="The 75 Project API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:8081", "exp://127.0.0.1:8081", "exp://localhost:8081"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -25,7 +25,9 @@ app.add_middleware(
 # Environment variables
 SUPABASE_URL = os.getenv("EXPO_PUBLIC_SUPABASE_URL")
 SUPABASE_KEY = os.getenv("EXPO_PUBLIC_SUPABASE_ANON_KEY")
-SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", SUPABASE_KEY)
+SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
+if not SUPABASE_SERVICE_KEY:
+    raise RuntimeError("SUPABASE_SERVICE_KEY must be set (do not fall back to anon key)")
 NIM_API_KEY = os.getenv("NIM_API_KEY")
 NIM_BASE_URL = "https://integrate.api.nvidia.com/v1"
 NIM_MODEL = "nvidia/llama-3.1-nemotron-nano-vl-8b-v1"

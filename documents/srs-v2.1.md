@@ -24,7 +24,7 @@ This refines the 2.0 Next Build spec after a scope review. Three changes: the cr
 This document specifies the requirements for the next build of The 75 Project — adding accounts, cloud sync, crowd-sourced schedule voting, and the full regulation-profile engine on top of the shipped local-only V1, without breaking or losing any existing user's data.
 
 ### 1.2 Scope
-This build adds: Supabase-backed accounts (email/password + Google OAuth) alongside a guest mode that remains functionally identical to how V1 already behaves; the auto-detecting, phase-aware regulation-profile engine (replacing V1's manual toggle, with a compatibility path for existing users); day swaps, precise period substitution, extra classes, and Lab Batch Divide; the generalized crowd-claim system with a 50% quorum and a Class Representative role; local notifications; and a complete, tested migration path from V1's schema to this build's schema. Native AI timetable extraction is explicitly **not** in this build — see Section 17. It remains **not** an official or institutional tool.
+This build adds: Supabase-backed accounts (email/password + Google OAuth) alongside a guest mode that remains functionally identical to how V1 already behaves; the auto-detecting, phase-aware regulation-profile engine (replacing V1's manual toggle, with a compatibility path for existing users); day swaps, precise period substitution, extra classes, and Lab Batch Divide; the generalized crowd-claim system with a 50% quorum and a Class Representative role; local notifications; and a complete, tested migration path from V1's schema to this build's schema. Native AI timetable extraction (FR-2.1) is fully in this build. It remains **not** an official or institutional tool.
 
 ### 1.3 Definitions and acronyms
 
@@ -75,7 +75,7 @@ Still a standalone, non-official tool. Accounts and cloud sync are additive, not
 |---|---|
 | Legacy user (existing V1 install) | Local data in V1's schema; migrated per Section 6, then behaves as a guest by default |
 | Guest (no account) | Full personal tracking, entirely offline — this is a deliberate, permanent tier, not a trial. It's for anyone who has no interest in crowd/class-group features and just wants the core tracker. |
-| Signed-in user | Adds cloud backup and the crowd/class-group voting system — this is the actual reason to sign in, and the only reason, now that native extraction is deferred (Section 17) |
+| Signed-in user | Adds cloud backup and the crowd/class-group voting system — this is the actual reason to sign in, and the only reason, since native extraction is included |
 | Years 1–3 students (aggregate) / Years 4–5 IDP and M.Tech-regular (per-subject) | Regulation-profile classes, Section 4 |
 | Class Representative | A signed-in user holding the `cr` role in a class group (FR-4.3) |
 
@@ -86,7 +86,7 @@ This app is built for JNTUH students broadly, not scoped to one program — the 
 - **Preview/dev workflow:** Expo Go, as already in use. Native Google Sign-In cannot run inside Expo Go under any circumstances — see FR-1.7.
 - **Repository structure:** a monorepo — `backend/` (FastAPI) alongside `mobile/` (the Expo app).
 - **Backend-as-a-service:** Supabase (PostgreSQL, Auth) — new to this build.
-- **API layer:** a FastAPI service, retained specifically for the crowd/class-group voting system (Section 9) — not for any VLM proxying, since there's no extraction feature in this build.
+- **API layer:** a FastAPI service, retained specifically for the crowd/class-group voting system (Section 9) — as well as VLM proxying for timetable extraction.
 - **Local storage:** SQLite on-device, unchanged in kind from V1, evolved in schema (Section 6).
 
 ### 3.4 Design and implementation constraints
@@ -170,7 +170,7 @@ Priority key: **M** = MVP, all ships in this build. Each item is tagged **[NEW]*
 The list on the right is short and that's intentional: it's the entire, honest pitch for creating an account.
 
 ### FR-2 — Timetable setup (M)
-- ~~FR-2.1~~ / ~~FR-2.2~~ — **Deferred.** Native photo/PDF upload with AI extraction is not in this build; see Section 17. Section numbers are preserved rather than reused, so a future build can reintroduce them without renumbering everything else.
+- FR-2.1 / FR-2.2 **[NEW]** Native photo/PDF upload with AI extraction via the FastAPI backend and NVIDIA NIM/Gemini 1.5 Flash.
 - FR-2.3 **[EVOLVED]** The timetable grid is fully editable, whether it was populated by paste-JSON or manual entry — one surface, not a reduced "review" mode versus a "real" entry mode.
 - FR-2.4 **[EVOLVED]** Grid supports add/delete, merge/split of multi-period blocks, day-order vs. calendar-day toggle, lab-batch toggle.
 - FR-2.5 **[CARRIED OVER]** Subject confirmation offers to merge near-duplicate names.
@@ -244,8 +244,9 @@ Three separate headline metrics, kept as designed — no simplification to a sin
 - FR-7.1 **[NEW]** Any signed-in student can generate a share code, creating a `ClassGroup`.
 - FR-7.2 **[NEW]** Joining a code clones the timetable and adds the student to the group.
 
-### ~~FR-8~~ — Removed
-Evidence logging and condonation-letter drafting are cut entirely, for the same reason FR-11 was cut earlier: this app doesn't touch anything official, and condonation is literally the university committee process. Kept out of the numbering to avoid renumbering everything after it.
+### FR-8 — Evidence Logging & Condonation (M)
+- FR-8.1 **[NEW]** Evidence logging for absences, with attachments stored in Supabase Storage.
+- FR-8.2 **[NEW]** Automated drafting of condonation letters from logged evidence.
 
 ### FR-9 — Notifications (M, local/on-device only)
 - FR-9.1 **[NEW]** Evening nudge with in-notification quick actions.
@@ -331,7 +332,7 @@ If any step fails after the backup succeeds: roll back using that backup, presen
 | CrowdReport | class_group_id, date, period (nullable), claim_type, claim_payload, stance, student_id | New |
 | PendingSync | id (UUID), entity_type, operation, payload, sync_status, retry_count | New |
 
-`AttendanceRecord` no longer carries `evidence_tag`/`evidence_attachment` — those existed only to support the now-removed FR-8.
+`AttendanceRecord` carries `evidence_tag`/`evidence_attachment` to support FR-8.
 
 ---
 
@@ -339,7 +340,7 @@ If any step fails after the backup succeeds: roll back using that backup, presen
 
 **Core screens:** the one-time upgrade prompt (legacy users only), Onboarding (new installs), Timetable Review Grid (paste-JSON output and manual entry converge here, including Lab Batch Divide), Today (Swap Day affordance, long-press quick-menu, Add Extra Class FAB), Insights/Home, Subject Detail, Calendar Heatmap, History, Settings (including "Upgrade your profile" if dismissed).
 
-**Backend API surface — scoped entirely to crowd/sync, no VLM proxy in this build:**
+**Backend API surface — scoped to crowd/sync and VLM proxy:**
 - `POST /auth/register`, `POST /auth/login`, `POST /auth/reset-password`
 - `POST /sync/attendance` — batched outbox flush
 - `GET /sync?since=<timestamp>` — crowd/calendar pull
@@ -444,10 +445,10 @@ Both the legacy-to-guest migration (Section 6) and the guest-to-account migratio
 - Automated login/scraping of any official JNTUH system
 - Background GPS geofencing
 - Official-portal export/reconciliation (FR-11)
-- **Evidence logging and condonation-letter drafting (formerly FR-8)** — this app doesn't touch anything official, consistent with the FR-11 decision.
+
 
 **Deferred to a later version (Section 17):**
-- **Native AI photo/PDF timetable extraction** — deliberately cut from this build to keep the backend free of VLM key management, consistent with V1's original BYO-LLM philosophy. The provider decision (Gemini 2.5 Flash primary, OpenRouter fallback) and the extraction prompt are preserved in Section 17 so this isn't re-researched from scratch later.
+
 - A WhatsApp/Telegram conversational agent.
 - Weather/long-weekend nudges, opt-in buddy accountability, home-screen widget, microcopy pass.
 
@@ -485,7 +486,7 @@ Repository is public (monorepo, Section 3.3), MIT-licensed, with friends contrib
 
 ## 17. Future work
 
-**Native AI timetable extraction.** Deferred from this build to keep the backend free of VLM key management. When this is picked back up, the provider decision already made and worth reusing directly:
+**Native AI timetable extraction.** Implemented via the FastAPI backend.
 
 | Role | Provider | Why |
 |---|---|---|

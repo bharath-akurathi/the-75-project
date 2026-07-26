@@ -8,7 +8,7 @@ import { SQLiteProvider, useSQLiteContext } from 'expo-sqlite';
 import { AuthProvider, useAuth } from '@/lib/auth/AuthContext';
 // Note: We use V1's Theme context logic if it existed, but V1 just used static exports.
 // However, to keep it simple, we don't need ThemeProvider if V1 didn't use it.
-import { requestNotificationPermissions, scheduleEveningReminder } from '@/lib/notifications/scheduler';
+import { initializeNotifications, scheduleEveningReminder } from '@/lib/notifications/scheduler';
 import { flushOutbox } from '@/lib/database/syncWorker';
 import { migrateDatabase } from '@/lib/database/migrations';
 import { Colors } from '@/theme/colors';
@@ -94,10 +94,7 @@ function NavigationGuard({ children }: { children: React.ReactNode }) {
 function AppContent() {
   useEffect(() => {
     async function setupNotifications() {
-      const granted = await requestNotificationPermissions();
-      if (granted) {
-        await scheduleEveningReminder();
-      }
+      await initializeNotifications();
     }
     setupNotifications();
 

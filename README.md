@@ -119,6 +119,7 @@ The app was successfully built out in 7 distinct phases based on the v3.1 SRS:
 
 9. **Final Polish & Deployment (Phase 9)**:
    - Deployed FastAPI backend to Render.
+   - Fully wired native AI Timetable extraction (`expo-file-system/legacy` -> FastAPI -> NVIDIA NIM Vision).
    - Integrated Guest Mode Sign-In directly on the Settings screen for frictionless upgrades.
    - Polished the Dashboard with `react-native-reanimated` transitions and `expo-linear-gradient`.
    - Built a dynamic Calendar Heatmap (FR-5.6) component inside the Insights screen.
@@ -130,6 +131,8 @@ The app was successfully built out in 7 distinct phases based on the v3.1 SRS:
 - Replaced the placeholder logo text with a natively rendered `react-native-svg` conversion of `logo.svg`.
 - Resolved type mismatches with `NotificationBehavior` and `OpaqueColorValue`.
 - Fixed UUID typing issues during Timetable Import.
+- Fixed `expo-notifications` crash on Android Expo Go via safe dynamic import.
+- Built intelligent Subject mapping and Day/Period uniqueness validation into the Manual Slot Add feature.
 
 ---
 
@@ -139,11 +142,10 @@ The app was successfully built out in 7 distinct phases based on the v3.1 SRS:
 
 While the core functionality of The 75 Project is complete and live, there are a few deferred features and final integrations planned for the next major release:
 
-- [ ] **Native AI Timetable Image Extraction (FR-2.1)**: The AI fallback using `paste-JSON` works well, but the direct image-upload pipeline (`expo-image-picker` -> FastAPI -> NVIDIA NIM Vision) needs to be finalized and tested for edge-cases like blurry photos.
 - [ ] **Extra Class Persistence**: The Extra Class FAB on the Dashboard has been visually polished but needs to be fully wired to the local SQLite `addExtraClass` transaction.
 - [ ] **Crowd-Source Quorum Testing**: The backend logic for 50% quorum consensus (FR-7) is built in FastAPI, but rigorous real-device testing with multiple users joining the same class group is required to ensure race conditions don't occur.
 - [ ] **Push Notifications**: Local device notifications are active, but true Remote Push Notifications via Expo's Push service need to be set up to notify users immediately when a crowd-sourced class is cancelled.
-- [ ] **Evidence Log & Condonation Letters (FR-8)**: Deferred from v2.1. Needs to be built out to allow users to upload medical certificates and generate formatted PDF condonation letters.
+- [ ] **Evidence Log & Condonation Letters (FR-8)**: UI is mocked, but needs to be fully built out to allow users to upload medical certificates and generate formatted PDF condonation letters.
 
 ---
 

@@ -16,6 +16,9 @@ expo-env.d.ts
 
 temp
 builds
+test
+
+backend/.env
 
 # Native
 .kotlin/
@@ -60,4 +63,4 @@ venv/
 env/
 .env/
 
-tt.jpeg
+tt.jpeg=*

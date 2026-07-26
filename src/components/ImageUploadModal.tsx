@@ -15,7 +15,7 @@ import {
   Alert,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/theme/colors';
 import { Typography } from '@/theme/typography';
@@ -69,6 +69,7 @@ export function ImageUploadModal({ visible, onClose, onImport }: ImageUploadModa
       const fileInfo = await FileSystem.getInfoAsync(uri);
       if (fileInfo.exists && fileInfo.size > 2 * 1024 * 1024) {
         // If image is larger than 2MB, compress by re-saving with lower quality
+        // @ts-ignore: cacheDirectory is exported but TS types in SDK 53 might miss it
         const compressedUri = `${FileSystem.cacheDirectory}compressed_${Date.now()}.jpg`;
         await FileSystem.copyAsync({ from: uri, to: compressedUri });
         return compressedUri;
@@ -89,25 +90,18 @@ export function ImageUploadModal({ visible, onClose, onImport }: ImageUploadModa
       // Compress image if needed
       const imageUri = await compressImage(selectedImage);
       
-      // Create FormData for file upload
-      const formData = new FormData();
-      formData.append('file', {
-        uri: imageUri,
-        type: 'image/jpeg',
-        name: 'timetable.jpg',
-      } as any);
-
-      const response = await fetch(`${apiUrl}/parse-image`, {
-        method: 'POST',
+      const response = await FileSystem.uploadAsync(`${apiUrl}/parse-image`, imageUri, {
+        httpMethod: 'POST',
+        uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+        fieldName: 'file',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
         },
-        body: formData,
       });
 
-      const data = await response.json();
+      const data = JSON.parse(response.body);
 
-      if (!response.ok) {
+      if (response.status !== 200) {
         throw new Error(data.detail || 'Failed to parse image');
       }
 

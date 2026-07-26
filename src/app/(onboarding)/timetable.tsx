@@ -14,6 +14,7 @@ import {
   Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useAuth } from '@/lib/auth/AuthContext';
 import { useSQLiteContext } from 'expo-sqlite';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -21,6 +22,7 @@ import { addSubject, addSlot, getAllSubjects, getAllSlots } from '@/lib/database
 import { validateTimetableJson, extractUniqueSubjects } from '@/utils/jsonValidator';
 import { CloneModal } from '@/components/CloneModal';
 import { ImageUploadModal } from '@/components/ImageUploadModal';
+import { JsonPasteModal } from '@/components/JsonPasteModal';
 import { Colors } from '@/theme/colors';
 import { Typography } from '@/theme/typography';
 import { Spacing, BorderRadius } from '@/theme/spacing';
@@ -31,8 +33,10 @@ const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
 export default function TimetableScreen() {
   const router = useRouter();
   const db = useSQLiteContext();
+  const { mode } = useAuth();
   const [showCloneModal, setShowCloneModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
+  const [showJsonModal, setShowJsonModal] = useState(false);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [slots, setSlots] = useState<TimetableSlotWithSubject[]>([]);
   const [showManual, setShowManual] = useState(false);
@@ -96,6 +100,13 @@ export default function TimetableScreen() {
       return;
     }
 
+    // Uniqueness validation
+    const exists = slots.some(s => s.day_of_week === newDay && s.period_num === periodNum);
+    if (exists) {
+      Alert.alert('Duplicate Period', `Period ${periodNum} already exists on ${newDay}.`);
+      return;
+    }
+
     try {
       // Find or create subject
       let subjectId: string;
@@ -151,14 +162,25 @@ export default function TimetableScreen() {
 
         {/* Import Options */}
         <View style={styles.optionsRow}>
-          <TouchableOpacity
-            style={styles.optionButton}
-            onPress={() => setShowImageModal(true)}
-          >
-            <Ionicons name="camera" size={22} color={Colors.amber} />
-            <Text style={styles.optionButtonTitle}>AI Import</Text>
-            <Text style={styles.optionButtonSub}>Scan Image</Text>
-          </TouchableOpacity>
+          {mode === 'guest' ? (
+            <TouchableOpacity
+              style={styles.optionButton}
+              onPress={() => setShowJsonModal(true)}
+            >
+              <Ionicons name="code-slash-outline" size={22} color={Colors.amber} />
+              <Text style={styles.optionButtonTitle}>Paste JSON</Text>
+              <Text style={styles.optionButtonSub}>Raw Data</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.optionButton}
+              onPress={() => setShowImageModal(true)}
+            >
+              <Ionicons name="camera" size={22} color={Colors.amber} />
+              <Text style={styles.optionButtonTitle}>AI Import</Text>
+              <Text style={styles.optionButtonSub}>Scan Image</Text>
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity
             style={styles.optionButton}

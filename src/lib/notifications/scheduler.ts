@@ -1,8 +1,16 @@
-import * as Notifications from 'expo-notifications';
+import type * as NotificationsTypes from 'expo-notifications';
+
+let Notifications: typeof NotificationsTypes | undefined;
+try {
+  Notifications = require('expo-notifications');
+} catch (e) {
+  console.warn('expo-notifications is not available in this environment');
+}
 import {
   registerForPushNotificationsAsync,
   setupNotificationListeners,
   scheduleLocalNotification,
+  cancelAllNotifications,
 } from './NotificationService';
 
 /**
@@ -104,6 +112,8 @@ export async function scheduleEveningReminder() {
     // Clear any existing evening reminders first
     await clearEveningReminder();
 
+    if (!Notifications) return;
+
     // Schedule recurring daily notification at 18:00
     await Notifications.scheduleNotificationAsync({
       content: {
@@ -128,6 +138,8 @@ export async function scheduleEveningReminder() {
  */
 export async function clearEveningReminder() {
   try {
+    if (!Notifications) return;
+    
     const scheduled = await Notifications.getAllScheduledNotificationsAsync();
     for (const notif of scheduled) {
       if (notif.content.data?.type === 'evening_reminder') {

@@ -13,15 +13,16 @@ import { Logo } from '@/components/Logo';
 import { Colors } from '@/theme/colors';
 import { Typography } from '@/theme/typography';
 import { Spacing, BorderRadius } from '@/theme/spacing';
+import { initializeNotifications } from '@/lib/notifications/scheduler';
 
 export default function DoneScreen() {
   const router = useRouter();
   const db = useSQLiteContext();
 
   const handleFinish = async () => {
-    // Request notification permissions (FR-9.1)
-    const { requestNotificationPermissions } = await import('@/lib/notifications/scheduler');
-    await requestNotificationPermissions();
+    // Request notification permissions before entering app
+    const { hasPermission } = await initializeNotifications();
+    console.log('Push notification permission:', hasPermission);
 
     await setOnboardingComplete(db);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

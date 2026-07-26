@@ -1,8 +1,15 @@
-import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
+import type * as NotificationsTypes from 'expo-notifications';
+
+let Notifications: typeof NotificationsTypes | undefined;
+try {
+  Notifications = require('expo-notifications');
+} catch (e) {
+  console.warn('expo-notifications is not available in this environment');
+}
 
 // ============================================================================
 // Constants
@@ -14,15 +21,17 @@ const PUSH_TOKEN_KEY = '@the75project:push_token';
 // Notification Handler Setup
 // ============================================================================
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+if (Notifications) {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+}
 
 // ============================================================================
 // Types
@@ -50,8 +59,8 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
   }
 
   // Check if running in Expo Go - push notifications are disabled
-  if (Constants.appOwnership === 'expo') {
-    console.log('Push notifications are disabled in Expo Go (SDK 53+)');
+  if (Constants.appOwnership === 'expo' || !Notifications) {
+    console.log('Push notifications are disabled in this environment');
     return null;
   }
 
@@ -128,10 +137,10 @@ export async function clearPushToken(): Promise<void> {
 // Notification Listeners
 // ============================================================================
 
-type NotificationListener = (notification: Notifications.Notification) => void;
+type NotificationListener = (notification: NotificationsTypes.Notification) => void;
 
-let notificationSubscription: Notifications.Subscription | null = null;
-let responseSubscription: Notifications.Subscription | null = null;
+let notificationSubscription: NotificationsTypes.Subscription | null = null;
+let responseSubscription: NotificationsTypes.Subscription | null = null;
 
 /**
  * Sets up listeners for incoming notifications and notification responses.
@@ -139,10 +148,12 @@ let responseSubscription: Notifications.Subscription | null = null;
  */
 export function setupNotificationListeners(
   onNotificationReceived?: NotificationListener,
-  onNotificationTapped?: (response: Notifications.NotificationResponse) => void
+  onNotificationTapped?: (response: NotificationsTypes.NotificationResponse) => void
 ): () => void {
   // Remove existing listeners
   removeNotificationListeners();
+
+  if (!Notifications) return () => {};
 
   // Listen for incoming notifications (foreground)
   notificationSubscription = Notifications.addNotificationReceivedListener(
@@ -167,12 +178,14 @@ export function setupNotificationListeners(
  * Removes all notification listeners.
  */
 export function removeNotificationListeners(): void {
+  if (!Notifications) return;
+  
   if (notificationSubscription) {
-    Notifications.removeNotificationSubscription(notificationSubscription);
+    notificationSubscription.remove();
     notificationSubscription = null;
   }
   if (responseSubscription) {
-    Notifications.removeNotificationSubscription(responseSubscription);
+    responseSubscription.remove();
     responseSubscription = null;
   }
 }
@@ -185,13 +198,15 @@ export function removeNotificationListeners(): void {
  * Cancels all scheduled notifications.
  */
 export async function cancelAllNotifications(): Promise<void> {
+  if (!Notifications) return;
   await Notifications.cancelAllScheduledNotificationsAsync();
 }
 
 /**
  * Gets all currently scheduled notifications.
  */
-export async function getScheduledNotifications(): Promise<Notifications.NotificationRequest[]> {
+export async function getScheduledNotifications(): Promise<NotificationsTypes.NotificationRequest[]> {
+  if (!Notifications) return [];
   return Notifications.getAllScheduledNotificationsAsync();
 }
 
@@ -199,6 +214,7 @@ export async function getScheduledNotifications(): Promise<Notifications.Notific
  * Sets the badge count (iOS only).
  */
 export async function setBadgeCount(count: number): Promise<void> {
+  if (!Notifications) return;
   if (Platform.OS === 'ios') {
     await Notifications.setBadgeCountAsync(count);
   }
@@ -213,12 +229,14 @@ export async function scheduleLocalNotification(
   data?: Record<string, unknown>,
   delaySeconds?: number
 ): Promise<string> {
-  const content: Notifications.NotificationContentInput = {
+  const content: NotificationsTypes.NotificationContentInput = {
     title,
     body,
     data: data || {},
     sound: true,
   };
+
+  if (!Notifications) return '';
 
   // Validate delay to prevent negative values
   const validDelay = delaySeconds && delaySeconds > 0 ? delaySeconds : undefined;

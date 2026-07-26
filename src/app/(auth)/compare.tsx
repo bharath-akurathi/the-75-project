@@ -23,14 +23,16 @@ const comparisons: ComparisonRow[] = [
   { feature: 'Manual timetable creation', guest: true, account: true },
   { feature: 'Paste-JSON timetable extraction', guest: true, account: true },
   { feature: 'Full daily marking (present/absent)', guest: true, account: true },
+  { feature: 'Extra Classes logging', guest: true, account: true },
   { feature: 'Personal exceptions & day swaps', guest: true, account: true },
   { feature: 'Complete calculation engine', guest: true, account: true },
   { feature: 'Insights, heatmap & burndown', guest: true, account: true },
   { feature: 'Light & dark mode', guest: true, account: true },
+  { feature: 'AI Image-to-Timetable parser', guest: false, account: true },
+  { feature: 'Evidence Log & Condonation Drafter', guest: false, account: true },
   { feature: 'Cloud backup & multi-device sync', guest: false, account: true },
   { feature: 'Share timetable by code', guest: false, account: true },
   { feature: 'Crowd-sourced cancellations', guest: false, account: true },
-  { feature: 'Backed-up evidence attachments', guest: false, account: true },
 ];
 
 export default function CompareScreen() {

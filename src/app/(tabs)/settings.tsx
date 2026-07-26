@@ -66,7 +66,7 @@ export default function SettingsScreen() {
   const [showAddSlot, setShowAddSlot] = useState(false);
   const [addSlotDay, setAddSlotDay] = useState('Monday');
   const [addSlotPeriod, setAddSlotPeriod] = useState('');
-  const [addSlotSubjectId, setAddSlotSubjectId] = useState<string | null>(null);
+  const [addSlotSubjectName, setAddSlotSubjectName] = useState('');
 
   const loadData = useCallback(async () => {
     const p = await getPreferences(db);
@@ -129,8 +129,8 @@ export default function SettingsScreen() {
   };
 
   const handleAddSlot = async () => {
-    if (!addSlotSubjectId || !addSlotPeriod.trim()) {
-      Alert.alert('Incomplete', 'Select a subject and enter a period number.');
+    if (!addSlotSubjectName.trim() || !addSlotPeriod.trim()) {
+      Alert.alert('Incomplete', 'Select or enter a subject and a period number.');
       return;
     }
     const periodNum = parseInt(addSlotPeriod, 10);
@@ -138,8 +138,29 @@ export default function SettingsScreen() {
       Alert.alert('Invalid', 'Period must be a positive number.');
       return;
     }
-    await addSlot(db, addSlotDay, periodNum, addSlotSubjectId);
+
+    // Uniqueness validation
+    const exists = slots.some(s => s.day_of_week === addSlotDay && s.period_num === periodNum);
+    if (exists) {
+      Alert.alert('Duplicate Period', `Period ${periodNum} already exists on ${addSlotDay}.`);
+      return;
+    }
+
+    let subjectId: string;
+    const existingSubject = subjects.find(
+      s => s.name.toLowerCase() === addSlotSubjectName.trim().toLowerCase()
+    );
+
+    if (existingSubject) {
+      subjectId = existingSubject.id;
+      Alert.alert('Subject Matched', `Mapped this slot to existing subject: ${existingSubject.name}`);
+    } else {
+      subjectId = await addSubject(db, addSlotSubjectName.trim());
+    }
+
+    await addSlot(db, addSlotDay, periodNum, subjectId);
     setAddSlotPeriod('');
+    setAddSlotSubjectName('');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     await loadData();
   };
@@ -398,7 +419,7 @@ export default function SettingsScreen() {
           <Text style={[styles.importButtonText, { color: Colors.rose }]}>Add Slot Manually</Text>
         </TouchableOpacity>
 
-        {showAddSlot && subjects.length > 0 && (
+        {showAddSlot && (
           <View style={styles.addSlotForm}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.dayChips}>
               {DAYS.map((day) => (
@@ -414,28 +435,39 @@ export default function SettingsScreen() {
               ))}
             </ScrollView>
 
-            <TextInput
-              style={styles.slotInput}
-              value={addSlotPeriod}
-              onChangeText={setAddSlotPeriod}
-              placeholder="Period #"
-              placeholderTextColor={Colors.dark.textMuted}
-              keyboardType="numeric"
-            />
+            <View style={{ flexDirection: 'row', gap: Spacing.md, marginBottom: Spacing.md }}>
+              <TextInput
+                style={[styles.slotInput, { flex: 0.3, marginBottom: 0 }]}
+                value={addSlotPeriod}
+                onChangeText={setAddSlotPeriod}
+                placeholder="Period #"
+                placeholderTextColor={Colors.dark.textMuted}
+                keyboardType="numeric"
+              />
+              <TextInput
+                style={[styles.slotInput, { flex: 0.7, marginBottom: 0 }]}
+                value={addSlotSubjectName}
+                onChangeText={setAddSlotSubjectName}
+                placeholder="Subject Name"
+                placeholderTextColor={Colors.dark.textMuted}
+              />
+            </View>
 
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.subjectChips}>
-              {subjects.map((s) => (
-                <TouchableOpacity
-                  key={s.id}
-                  style={[styles.subjectChip, addSlotSubjectId === s.id && styles.subjectChipActive]}
-                  onPress={() => setAddSlotSubjectId(s.id)}
-                >
-                  <Text style={[styles.subjectChipText, addSlotSubjectId === s.id && styles.subjectChipTextActive]}>
-                    {s.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+            {subjects.length > 0 && (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.subjectChips}>
+                {subjects.map((s) => (
+                  <TouchableOpacity
+                    key={s.id}
+                    style={[styles.subjectChip, addSlotSubjectName.trim().toLowerCase() === s.name.toLowerCase() && styles.subjectChipActive]}
+                    onPress={() => setAddSlotSubjectName(s.name)}
+                  >
+                    <Text style={[styles.subjectChipText, addSlotSubjectName.trim().toLowerCase() === s.name.toLowerCase() && styles.subjectChipTextActive]}>
+                      {s.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
 
             <TouchableOpacity style={styles.addSlotButton} onPress={handleAddSlot}>
               <Text style={styles.addSlotButtonText}>Add Slot</Text>
