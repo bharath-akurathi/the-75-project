@@ -14,7 +14,7 @@ An offline-first, regulation-aware attendance tracker for JNTUH students. This a
 - **Background Sync Engine**: Utilizes an Outbox Pattern to automatically sync local changes to Supabase in the background when connectivity is restored.
 - **Guest Mode Persistence**: Start using the app instantly without signing up. Your data is stored locally and can be seamlessly migrated to a cloud account later.
 - **Smart Regulation Engine**: Automatically applies the correct attendance rules based on your program (B.Tech, M.Tech, IDP) and year (Aggregate vs. Per-Subject).
-- **AI Timetable Extraction**: Just upload a photo of your schedule. The integrated FastAPI backend uses Gemini 1.5 Flash (with Gemma fallback) to instantly digitize it.
+- **AI Timetable Extraction**: Just upload a photo of your schedule. The integrated FastAPI backend uses NVIDIA NIM (Nemotron Vision) to instantly digitize it.
 - **Rich Insights**: Visual progress rings, a calendar heatmap, and a "Worst-Case Burndown" predictor.
 - **Risk-Aware Theming**: Red is strictly reserved for genuine danger ($<75\%$). Supports dynamic Light & Dark modes.
 - **Crowd-Sourced Exceptions**: Share class groups and crowdsource timetable cancellations and swaps via a dynamic quorum system.
@@ -38,7 +38,7 @@ An offline-first, regulation-aware attendance tracker for JNTUH students. This a
 ### AI Backend (`/backend`)
 - **Framework**: FastAPI (Python 3.11)
 - **Deployment**: Render
-- **Models**: Google Gemini 1.5 Flash, OpenRouter (Gemma-4-31b-it:free)
+- **Models**: NVIDIA NIM (Nemotron Vision)
 
 ---
 
@@ -83,7 +83,7 @@ An offline-first, regulation-aware attendance tracker for JNTUH students. This a
    ```env
    SUPABASE_URL=your_supabase_url
    SUPABASE_SERVICE_KEY=your_supabase_service_role_key
-   GEMINI_API_KEY=your_gemini_api_key
+   NIM_API_KEY=your_nvidia_nim_api_key
    ```
 
 4. **Start the FastAPI server:**
@@ -139,7 +139,7 @@ The app was successfully built out in 7 distinct phases based on the v3.1 SRS:
 
 While the core functionality of The 75 Project is complete and live, there are a few deferred features and final integrations planned for the next major release:
 
-- [ ] **Native AI Timetable Image Extraction (FR-2.1)**: The AI fallback using `paste-JSON` works well, but the direct image-upload pipeline (`expo-image-picker` -> FastAPI -> Gemini Vision) needs to be finalized and tested for edge-cases like blurry photos.
+- [ ] **Native AI Timetable Image Extraction (FR-2.1)**: The AI fallback using `paste-JSON` works well, but the direct image-upload pipeline (`expo-image-picker` -> FastAPI -> NVIDIA NIM Vision) needs to be finalized and tested for edge-cases like blurry photos.
 - [ ] **Extra Class Persistence**: The Extra Class FAB on the Dashboard has been visually polished but needs to be fully wired to the local SQLite `addExtraClass` transaction.
 - [ ] **Crowd-Source Quorum Testing**: The backend logic for 50% quorum consensus (FR-7) is built in FastAPI, but rigorous real-device testing with multiple users joining the same class group is required to ensure race conditions don't occur.
 - [ ] **Push Notifications**: Local device notifications are active, but true Remote Push Notifications via Expo's Push service need to be set up to notify users immediately when a crowd-sourced class is cancelled.

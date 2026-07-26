@@ -130,7 +130,7 @@ Enabled by default in Supabase Auth — there's very little to configure. Two pr
 ---
 
 ## 7. VLM keys (SRS Section 3.4)
-1. **Google AI Studio**: generate a Gemini API key. No credit card required for the free tier. Store it as `GEMINI_API_KEY` in the FastAPI backend's environment — never in the mobile app.
+1. **NVIDIA Build**: generate an NIM API key from [build.nvidia.com](https://build.nvidia.com/settings/api-keys). Store it as `NIM_API_KEY` in the FastAPI backend's environment — never in the mobile app.
 2. **OpenRouter**: generate an API key for the fallback path. Store as `OPENROUTER_API_KEY`, same rule — backend only.
 3. Both keys are called exclusively from the `POST /timetable/extract` endpoint (SRS Section 9) — the mobile client never sees either key, only the extraction result. This endpoint is also the first one that needs the JWT verification from Section 8 below, since it's signed-in-users-only.
 
@@ -202,7 +202,7 @@ This is what gates every account-only endpoint (`/timetable/extract`, `/class-gr
 ---
 
 ## 9. Secrets management (matters more here because this repo will be public)
-- Commit a `.env.example` with variable **names** only (`SUPABASE_URL=`, `GEMINI_API_KEY=`, `OPENROUTER_API_KEY=`, etc.) — never real values.
+- Commit a `.env.example` with variable **names** only (`SUPABASE_URL=`, `NIM_API_KEY=`, `OPENROUTER_API_KEY=`, etc.) — never real values.
 - Add `.env` to `.gitignore` before your first commit, not after.
 - For EAS builds, use `eas secret:create` for anything the client build needs (the Supabase URL and anon key are safe here — they're meant to be public; nothing else should be).
 - For the FastAPI backend, load secrets via environment variables (`python-dotenv` locally, your hosting provider's secret/environment settings in production) — never hardcoded.
@@ -228,7 +228,7 @@ Before this build ships to anyone already running V1 in production:
 - [ ] JWT verification dependency tested with a valid, an expired, and a tampered token
 - [ ] Google OAuth test sign-in works from a dev build
 - [ ] Email/password sign-up and reset-password flow both tested
-- [ ] `GEMINI_API_KEY` and `OPENROUTER_API_KEY` both set server-side only
+- [ ] `NIM_API_KEY` and `OPENROUTER_API_KEY` both set server-side only
 - [ ] `.env` is git-ignored, `.env.example` is committed instead
 - [ ] Dependabot enabled on the repository
 - [ ] Migration pipeline run at least once against a real legacy dataset, not just synthetic fixtures

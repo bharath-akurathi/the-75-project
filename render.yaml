@@ -5,7 +5,7 @@ services:
     rootDir: backend
     plan: free
     envVars:
-      - key: GEMINI_API_KEY
+      - key: NIM_API_KEY
         sync: false
       - key: OPENROUTER_API_KEY
         sync: false

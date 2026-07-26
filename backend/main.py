@@ -9,7 +9,7 @@ import httpx
 import jwt
 from jwt import PyJWKClient
 from typing import Optional
-import google.generativeai as genai
+from openai import AsyncOpenAI
 
 # Setup
 app = FastAPI(title="The 75 Project API")
@@ -26,7 +26,9 @@ app.add_middleware(
 SUPABASE_URL = os.getenv("EXPO_PUBLIC_SUPABASE_URL")
 SUPABASE_KEY = os.getenv("EXPO_PUBLIC_SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", SUPABASE_KEY)
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+NIM_API_KEY = os.getenv("NIM_API_KEY")
+NIM_BASE_URL = "https://integrate.api.nvidia.com/v1"
+NIM_MODEL = "nvidia/llama-3.1-nemotron-nano-vl-8b-v1"
 JWKS_CACHE_LIFESPAN_SECONDS = int(os.getenv("JWKS_CACHE_LIFESPAN_SECONDS", "600"))
 
 if not SUPABASE_URL or not SUPABASE_KEY:
@@ -99,12 +101,9 @@ async def parse_timetable_image(
     user_id: str = Depends(get_current_user)
 ):
     """
-    Parses a timetable image using Gemini Vision and returns structured JSON.
+    Parses a timetable image using NVIDIA NIM Vision and returns structured JSON.
     FR-2.1: Native AI Timetable Image Extraction
     """
-    if not GEMINI_API_KEY:
-        raise HTTPException(status_code=503, detail="AI parsing service not configured")
-    
     # Validate file type
     allowed_types = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"]
     if file.content_type not in allowed_types:
@@ -126,37 +125,49 @@ async def parse_timetable_image(
     
     image_b64 = base64.b64encode(image_bytes).decode("utf-8")
     
-    # Get MIME type for Gemini
+    # Get MIME type for NIM
     mime_type = file.content_type or "image/jpeg"
     
-    # Configure Gemini lazily
-    if not GEMINI_API_KEY:
+    # Validate NIM API key
+    if not NIM_API_KEY:
         raise HTTPException(status_code=503, detail="AI parsing service not configured")
-    genai.configure(api_key=GEMINI_API_KEY)
     
     try:
-        # Initialize Gemini model
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        # Initialize NVIDIA NIM client (OpenAI-compatible API)
+        nim_client = AsyncOpenAI(
+            base_url=NIM_BASE_URL,
+            api_key=NIM_API_KEY
+        )
         
-        # Create image part
-        image_part = {
-            "inline_data": {
-                "mime_type": mime_type,
-                "data": image_b64
-            }
-        }
+        # Create chat completion with Nemotron vision model
+        response = await nim_client.chat.completions.create(
+            model=NIM_MODEL,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": PARSE_PROMPT},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:{mime_type};base64,{image_b64}"
+                            }
+                        }
+                    ]
+                }
+            ],
+            temperature=0.1,
+            top_p=0.7,
+            max_tokens=4096,
+        )
         
-        # Generate response
-        response = model.generate_content([
-            PARSE_PROMPT,
-            image_part
-        ])
+        response_text = response.choices[0].message.content
         
-        if not response.text:
+        if not response_text:
             raise HTTPException(status_code=500, detail="AI returned empty response")
         
         # Extract JSON from response (handle potential markdown wrapping)
-        response_text = response.text.strip()
+        response_text = response_text.strip()
         
         # Remove markdown code blocks if present
         json_match = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', response_text, re.DOTALL)
@@ -206,7 +217,7 @@ async def parse_timetable_image(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Gemini API error: {str(e)}")
+        print(f"NVIDIA NIM API error: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail=f"AI parsing failed: {str(e)}. Please try again or use manual entry."

@@ -134,7 +134,7 @@ def test_pull_sync():
     assert "crowd_reports" in response.json()
 
 def test_timetable_extract_invalid_key():
-    # Will fail quickly because no real image is provided and Gemini key might not be set in test env
+    # Will fail quickly because no real image is provided and NIM key might not be set in test env
     # Or if set, it will fail due to base64 format. We just check it doesn't 500 unexpectedly.
     response = client.post("/timetable/extract", json={
         "image_base64": "invalid_base64"
