@@ -55,16 +55,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user: null,
     session: null,
     localUserId: null,
-    isExpoGo: false,
+    isExpoGo: Constants.appOwnership === 'expo',
   });
 
-  // Detect Expo Go environment (FR-1.7)
-  // Google Sign-In cannot run in Expo Go — hide the button there
-  useEffect(() => {
-    const appOwnership = Constants.appOwnership;
-    const isExpoGo = appOwnership === 'expo';
-    setState(prev => ({ ...prev, isExpoGo }));
-  }, []);
+  const checkGuestMode = async () => {
+    try {
+      const guestMode = await AsyncStorage.getItem(GUEST_MODE_KEY);
+      const localUserId = await AsyncStorage.getItem(LOCAL_USER_ID_KEY);
+      if (guestMode === 'true' && localUserId) {
+        setState(prev => ({
+          ...prev,
+          mode: 'guest',
+          localUserId,
+          user: null,
+          session: null,
+        }));
+      } else {
+        // No session, no guest mode — show welcome screen
+        setState(prev => ({
+          ...prev,
+          mode: 'unauthenticated',
+          user: null,
+          session: null,
+        }));
+      }
+    } catch {
+      setState(prev => ({ ...prev, mode: 'unauthenticated' }));
+    }
+  };
 
   // Listen for auth state changes
   useEffect(() => {
@@ -105,32 +123,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => subscription.unsubscribe();
   }, []);
-
-  const checkGuestMode = async () => {
-    try {
-      const guestMode = await AsyncStorage.getItem(GUEST_MODE_KEY);
-      const localUserId = await AsyncStorage.getItem(LOCAL_USER_ID_KEY);
-      if (guestMode === 'true' && localUserId) {
-        setState(prev => ({
-          ...prev,
-          mode: 'guest',
-          localUserId,
-          user: null,
-          session: null,
-        }));
-      } else {
-        // No session, no guest mode — show welcome screen
-        setState(prev => ({
-          ...prev,
-          mode: 'unauthenticated',
-          user: null,
-          session: null,
-        }));
-      }
-    } catch {
-      setState(prev => ({ ...prev, mode: 'unauthenticated' }));
-    }
-  };
 
   // ── Sign Up ────────────────────────────────────────────────────────────
   const signUp = useCallback(async (email: string, password: string) => {

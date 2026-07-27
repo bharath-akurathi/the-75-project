@@ -59,6 +59,40 @@ export async function markAttendance(
   });
 }
 
+export async function updateEvidence(
+  recordId: string,
+  evidenceTag: string | null = null,
+  evidenceAttachment: string | null = null
+): Promise<void> {
+  const db = await getDB();
+  const now = new Date().toISOString();
+
+  await withTransaction(async (transactionDb) => {
+    // 1. Write to attendance_records
+    await transactionDb.runAsync(
+      `UPDATE attendance_records 
+       SET evidence_tag = ?, evidence_attachment = ?, updated_at = ?
+       WHERE id = ?`,
+      [evidenceTag, evidenceAttachment, now, recordId]
+    );
+
+    // 2. We need the full record for sync outbox
+    const record = await transactionDb.getFirstAsync<any>(
+      `SELECT * FROM attendance_records WHERE id = ?`,
+      [recordId]
+    );
+
+    if (record) {
+      const payload = JSON.stringify(record);
+      await transactionDb.runAsync(
+        `INSERT INTO sync_outbox (id, table_name, operation, payload, created_at)
+         VALUES (?, 'attendance_records', 'UPSERT', ?, ?)`,
+        [Crypto.randomUUID(), payload, now]
+      );
+    }
+  });
+}
+
 export interface SlotData {
   day: string;
   period_number: number;

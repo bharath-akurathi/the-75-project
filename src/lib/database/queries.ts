@@ -272,7 +272,7 @@ export async function deleteSubject(db: SQLiteDatabase, id: string): Promise<voi
 // Timetable Slots (V2 timetable_slots)
 // ----------------------------------------------------------------------------
 
-export async function getSlotsForDay(db: SQLiteDatabase, dayOfWeek: string): Promise<TimetableSlotWithSubject[]> {
+export async function getSlotsForDay(db: SQLiteDatabase, dayOfWeek: string, dateStr: string): Promise<TimetableSlotWithSubject[]> {
   const studentId = await getActiveStudentId(db);
   const semId = await getActiveSemesterId(db, studentId!);
   
@@ -283,9 +283,9 @@ export async function getSlotsForDay(db: SQLiteDatabase, dayOfWeek: string): Pro
            s.name as subject_name, s.type as subject_type
     FROM timetable_slots ts
     JOIN subjects s ON ts.subject_id = s.id
-    WHERE ts.student_id = ? AND ts.semester_id = ? AND ts.day_or_day_order = ?
+    WHERE ts.student_id = ? AND ts.semester_id = ? AND (ts.day_or_day_order = ? OR ts.day_or_day_order = ?)
     ORDER BY ts.period ASC
-  `, [studentId, semId, dayOfWeek]);
+  `, [studentId, semId, dayOfWeek, dateStr]);
 
   return slots.map(s => ({
     id: s.id,
@@ -362,12 +362,6 @@ export async function getExceptionsForDate(db: SQLiteDatabase, date: string): Pr
     [studentId, semId, date]
   );
 
-  // Get cancellations
-  const cancellations = await db.getAllAsync<any>(
-    'SELECT id, period, original_subject_id as subject_id, status FROM daily_overrides WHERE student_id = ? AND semester_id = ? AND date = ? AND status = "cancelled"',
-    [studentId, semId, date]
-  );
-
   const exceptions: DailyException[] = [];
   
   records.forEach(r => exceptions.push({
@@ -378,6 +372,11 @@ export async function getExceptionsForDate(db: SQLiteDatabase, date: string): Pr
     status: r.status as 'absent' | 'present' | 'cancelled'
   }));
 
+  const cancellations = await db.getAllAsync<any>(
+    'SELECT id, period, original_subject_id as subject_id FROM daily_overrides WHERE student_id = ? AND semester_id = ? AND date = ? AND status = ?',
+    [studentId, semId, date, 'cancelled']
+  );
+
   cancellations.forEach(c => exceptions.push({
     id: c.id,
     date,
@@ -387,6 +386,21 @@ export async function getExceptionsForDate(db: SQLiteDatabase, date: string): Pr
   }));
 
   return exceptions;
+}
+
+export async function getAbsentRecords(db: SQLiteDatabase): Promise<any[]> {
+  const studentId = await getActiveStudentId(db);
+  const semId = await getActiveSemesterId(db, studentId!);
+  
+  if (!studentId || !semId) return [];
+
+  return await db.getAllAsync<any>(`
+    SELECT ar.id, ar.date, ar.period, ar.subject_id, ar.status, ar.evidence_tag, ar.evidence_attachment, s.name as subject_name 
+    FROM attendance_records ar
+    JOIN subjects s ON ar.subject_id = s.id
+    WHERE ar.student_id = ? AND ar.semester_id = ? AND ar.status = 'absent'
+    ORDER BY ar.date DESC
+  `, [studentId, semId]);
 }
 
 export async function setException(db: SQLiteDatabase, date: string, periodNum: number, subjectId: string, status: 'present' | 'absent' | 'cancelled'): Promise<void> {

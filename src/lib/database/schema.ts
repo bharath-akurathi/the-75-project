@@ -109,6 +109,8 @@ export const INITIALIZE_DB_SQL = `
       period INTEGER NOT NULL,
       subject_id TEXT NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
       status TEXT NOT NULL DEFAULT 'present',
+      evidence_tag TEXT,
+      evidence_attachment TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       UNIQUE (student_id, date, period)

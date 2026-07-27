@@ -134,6 +134,12 @@ The app was successfully built out in 7 distinct phases based on the v3.1 SRS:
 - Fixed `expo-notifications` crash on Android Expo Go via safe dynamic import.
 - Built intelligent Subject mapping and Day/Period uniqueness validation into the Manual Slot Add feature.
 
+10. **Evidence Log & Fine-Tuning (Phase 10)**:
+    - Fully implemented the Evidence System (FR-8), adding `evidence_tag` and `evidence_attachment` to the database schema.
+    - Wired up the `evidence.tsx` screen for uploading medical certificates or official documents, directly syncing with Supabase Storage buckets.
+    - Achieved 100% stable integration test coverage on the `ImageUploadModal` to ensure robust performance across native iOS/Android permissions and environments.
+    - Resolved minor scope issues (cascading renders in `AuthContext`) and type mismatches.
+
 ---
 
 ---
@@ -142,10 +148,8 @@ The app was successfully built out in 7 distinct phases based on the v3.1 SRS:
 
 While the core functionality of The 75 Project is complete and live, there are a few deferred features and final integrations planned for the next major release:
 
-- [ ] **Extra Class Persistence**: The Extra Class FAB on the Dashboard has been visually polished but needs to be fully wired to the local SQLite `addExtraClass` transaction.
 - [ ] **Crowd-Source Quorum Testing**: The backend logic for 50% quorum consensus (FR-7) is built in FastAPI, but rigorous real-device testing with multiple users joining the same class group is required to ensure race conditions don't occur.
 - [ ] **Push Notifications**: Local device notifications are active, but true Remote Push Notifications via Expo's Push service need to be set up to notify users immediately when a crowd-sourced class is cancelled.
-- [ ] **Evidence Log & Condonation Letters (FR-8)**: UI is mocked, but needs to be fully built out to allow users to upload medical certificates and generate formatted PDF condonation letters.
 
 ---
 

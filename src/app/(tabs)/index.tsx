@@ -85,7 +85,7 @@ export default function TodayScreen() {
       setExceptions([]);
       return;
     }
-    const s = await getSlotsForDay(db, dayOfWeek);
+    const s = await getSlotsForDay(db, dayOfWeek, dateStr);
     const e = await getExceptionsForDate(db, dateStr);
     setSlots(s);
     setExceptions(e);

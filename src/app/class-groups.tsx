@@ -25,10 +25,6 @@ export default function ClassGroupsScreen() {
 
   const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000';
 
-  useEffect(() => {
-    loadGroups();
-  }, []);
-
   const loadGroups = async () => {
     setIsLoading(true);
     try {
@@ -83,6 +79,10 @@ export default function ClassGroupsScreen() {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadGroups();
+  }, []);
 
   const handleJoin = async () => {
     if (joinCode.length !== 6) return;

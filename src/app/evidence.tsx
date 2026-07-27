@@ -1,10 +1,14 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import { useSQLiteContext } from 'expo-sqlite';
+import { useFocusEffect } from 'expo-router';
 import { useTheme } from '@/lib/theme/ThemeContext';
 import { Typography, Spacing, Radius, Shadow } from '@/lib/theme/tokens';
+import { getAbsentRecords } from '@/lib/database/queries';
+import { updateEvidence } from '@/lib/database/mutations';
 
 /**
  * Evidence Log Screen (FR-8)
@@ -13,37 +17,52 @@ import { Typography, Spacing, Radius, Shadow } from '@/lib/theme/tokens';
  */
 export default function EvidenceLogScreen() {
   const router = useRouter();
+  const db = useSQLiteContext();
   const { colors } = useTheme();
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  
+  const [absences, setAbsences] = useState<any[]>([]);
 
-  // Placeholder data
-  const taggedAbsences = [
-    {
-      id: '1',
-      date: 'Jul 10, 2026',
-      subject: 'Data Structures',
-      tag: 'medical',
-      hasAttachment: true,
-    },
-    {
-      id: '2',
-      date: 'Jul 12, 2026',
-      subject: 'Operating Systems',
-      tag: 'official',
-      hasAttachment: false,
-    }
-  ];
+  const loadAbsences = useCallback(async () => {
+    const records = await getAbsentRecords(db);
+    setAbsences(records);
+  }, [db]);
 
-  const handlePickImage = async () => {
+  useFocusEffect(
+    useCallback(() => {
+      loadAbsences();
+    }, [loadAbsences])
+  );
+
+  const handlePickImage = async (recordId: string) => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 0.8,
     });
 
     if (!result.canceled) {
-      setSelectedImage(result.assets[0].uri);
-      // In reality, this would save the URI locally and trigger the binary outbox sync
+      const uri = result.assets[0].uri;
+      // Ask user to optionally add a tag
+      Alert.prompt(
+        "Add a Tag",
+        "E.g., medical, official, personal",
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Save', 
+            onPress: async (tag?: string) => {
+              await updateEvidence(recordId, tag || 'medical', uri);
+              await loadAbsences();
+            }
+          }
+        ],
+        'plain-text',
+        'medical'
+      );
     }
+  };
+
+  const handleGenerateRequest = () => {
+    Alert.alert("Coming Soon", "The AI condonation letter generator will be available in the next update.");
   };
 
   return (
@@ -67,6 +86,7 @@ export default function EvidenceLogScreen() {
         <TouchableOpacity
           style={[styles.primaryButton, { backgroundColor: colors.primary }]}
           activeOpacity={0.85}
+          onPress={handleGenerateRequest}
         >
           <Text style={[styles.primaryButtonText, { color: colors.textInverse }]}>
             Generate Condonation Request
@@ -77,48 +97,54 @@ export default function EvidenceLogScreen() {
         </Text>
 
         <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
-          TAGGED ABSENCES
+          YOUR ABSENCES
         </Text>
 
-        {taggedAbsences.map((record) => (
-          <View
-            key={record.id}
-            style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.borderSubtle }, Shadow.sm]}
-          >
-            <View style={styles.cardHeader}>
-              <View>
-                <Text style={[styles.dateText, { color: colors.text }]}>{record.date}</Text>
-                <Text style={[styles.subjectText, { color: colors.textSecondary }]}>{record.subject}</Text>
+        {absences.length === 0 ? (
+          <Text style={{ color: colors.textSecondary, marginTop: Spacing.md }}>No absences recorded yet.</Text>
+        ) : (
+          absences.map((record) => (
+            <View
+              key={record.id}
+              style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.borderSubtle }, Shadow.sm]}
+            >
+              <View style={styles.cardHeader}>
+                <View>
+                  <Text style={[styles.dateText, { color: colors.text }]}>{record.date} (Period {record.period})</Text>
+                  <Text style={[styles.subjectText, { color: colors.textSecondary }]}>{record.subject_name}</Text>
+                </View>
+                {record.evidence_tag && (
+                  <View
+                    style={[
+                      styles.tagBadge,
+                      { backgroundColor: record.evidence_tag.toLowerCase() === 'medical' ? colors.dangerLight : colors.primaryLight }
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.tagText,
+                        { color: record.evidence_tag.toLowerCase() === 'medical' ? colors.danger : colors.primary }
+                      ]}
+                    >
+                      {record.evidence_tag.toUpperCase()}
+                    </Text>
+                  </View>
+                )}
               </View>
-              <View
-                style={[
-                  styles.tagBadge,
-                  { backgroundColor: record.tag === 'medical' ? colors.dangerLight : colors.primaryLight }
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.tagText,
-                    { color: record.tag === 'medical' ? colors.danger : colors.primary }
-                  ]}
-                >
-                  {record.tag.toUpperCase()}
-                </Text>
-              </View>
-            </View>
 
-            <View style={styles.cardActions}>
-              <TouchableOpacity
-                style={[styles.actionButton, { borderColor: colors.border }]}
-                onPress={handlePickImage}
-              >
-                <Text style={[styles.actionButtonText, { color: colors.textSecondary }]}>
-                  {record.hasAttachment ? 'View Attachment' : '+ Add Photo'}
-                </Text>
-              </TouchableOpacity>
+              <View style={styles.cardActions}>
+                <TouchableOpacity
+                  style={[styles.actionButton, { borderColor: colors.border }]}
+                  onPress={() => handlePickImage(record.id)}
+                >
+                  <Text style={[styles.actionButtonText, { color: colors.textSecondary }]}>
+                    {record.evidence_attachment ? 'Update Attachment' : '+ Add Photo'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
-        ))}
+          ))
+        )}
       </ScrollView>
     </SafeAreaView>
   );
